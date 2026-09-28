@@ -2,7 +2,7 @@
 
 ## Bài làm và hướng dẫn review
 
-- Họ tên: Bui Van Quang — MSSV: 2A0202602688 (theo tên thư mục bài làm).
+- Họ tên: Bui Van Quang — MSSV: 2A202602688 (theo tên thư mục bài làm).
 - CP2: `src/guardrails/input_guardrails.py`, `output_guardrails.py`.
 - CP3: `src/assignment/` — input callbacks chạy với user ID thật; runner Blue
   chạy LLM và output plugin. Audit/monitoring quan sát cả request bị chặn.
