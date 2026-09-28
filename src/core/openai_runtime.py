@@ -8,6 +8,7 @@ Gemini Red Team dùng Google ADK trong agents/*.py — không đi qua file này.
 """
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -49,7 +50,7 @@ class OpenAIRunner:
     def _client(self):
         from openai import OpenAI
 
-        return OpenAI(**(self.client_kwargs or {}))
+        return OpenAI(max_retries=0, timeout=60, **(self.client_kwargs or {}))
 
     async def chat(self, agent: OpenAIAgent, user_message: str) -> str:
         for hook in self.input_hooks:
@@ -62,14 +63,37 @@ class OpenAIRunner:
             return block_msg
 
         client = self._client()
-        completion = client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {"role": "system", "content": agent.instruction},
-                {"role": "user", "content": user_message},
-            ],
-            temperature=self.temperature,
-        )
+        from openai import RateLimitError
+
+        for attempt in range(4):
+            try:
+                completion = client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": agent.instruction},
+                        {"role": "user", "content": user_message},
+                    ],
+                    temperature=self.temperature,
+                )
+                break
+            except RateLimitError as exc:
+                if attempt == 3:
+                    raise
+                body = exc.body if isinstance(exc.body, dict) else {}
+                error = body.get("error", body)
+                metadata = error.get("metadata", {}) if isinstance(error, dict) else {}
+                raw_delay = metadata.get("retry_after_seconds") or exc.response.headers.get("retry-after", 60)
+                try:
+                    delay = max(1, float(raw_delay)) + 1
+                except (ValueError, TypeError):
+                    delay = 60
+                if delay > 300:
+                    raise  # A long quota reset needs attention, not an endless retry.
+                print(f"Provider rate limited; retry {attempt + 1}/3 in {delay:.0f}s.", flush=True)
+                while delay > 0:
+                    pause = min(delay, 30)
+                    await asyncio.sleep(pause)
+                    delay -= pause
         text = (completion.choices[0].message.content or "").strip()
 
         for hook in self.output_hooks:

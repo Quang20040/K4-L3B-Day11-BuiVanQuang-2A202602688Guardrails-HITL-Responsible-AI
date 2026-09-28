@@ -1,5 +1,54 @@
 # Day 11 — Controlled Agent Security (2026)
 
+## Bài làm và hướng dẫn review
+
+- Họ tên: Bui Van Quang — MSSV: 2A0202602688 (theo tên thư mục bài làm).
+- CP2: `src/guardrails/input_guardrails.py`, `output_guardrails.py`.
+- CP3: `src/assignment/` — input callbacks chạy với user ID thật; runner Blue
+  chạy LLM và output plugin. Audit/monitoring quan sát cả request bị chặn.
+- CP4: `src/attacks/attacks.py` — 5 prompt cho lab VinBank giả lập; prompt cuối
+  yêu cầu nhiều bước trong một lượt, không giả định runner có lịch sử hội thoại.
+- Audit che PII/secret trước khi lưu. Egress chỉ kiểm tra policy, không thực hiện
+  chuyển tiền hay gửi dữ liệu đến endpoint demo.
+- Bài burst CP3 gọi limiter thật 15 lần, không gọi LLM; các câu banking an toàn
+  gọi Blue thật. Mỗi case phòng thủ dùng user riêng để rate limit không che lỗi filter.
+- Regex là lớp bảo vệ theo mẫu, không chứng minh chống được mọi prompt injection.
+  NeMo, Judge và module HITL mở rộng vẫn là phần tham khảo theo rubric.
+
+Chạy từ gốc repo trên PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python src/main.py --part 2
+python src/main.py --part 3
+python src/main.py --part 4
+python -m pytest tests/smoke tests/public tests/unit -q
+python scripts/grade.py --submission-dir . --out outputs/grade_report.json
+```
+
+Review diff trước khi commit; đọc report tự sinh trong `outputs/` và kiểm tra
+`public_tests.returncode` (phải bằng 0), không chỉ exit code của script grade.
+Commit code và artifacts; giữ `.env` ở local. Sau review, push repo và nộp link
+theo `SUBMISSION.md`.
+
+Trạng thái kiểm tra ngày 2026-09-28: **43 tests pass, không skip**.
+CP3 đã gọi Blue thật và sinh `results.json` đúng schema: safe 5/5 được qua,
+attack 7/7 bị chặn, edge 3/3 bị chặn; burst 15 request cho qua 10, chặn 5.
+Audit ghi 30 request, metrics không có request lỗi. Đã sinh đủ 8 artifact trong
+`outputs/`; grader báo `technical_failure: false`.
+ID Blue gốc `liquid/lfm-2.5-2.6b` trả 404. Đã sửa `BLUE_MODEL` trong
+`src/core/config.py` thành `liquid/lfm-2.5-2.6b:free` theo
+[ID chính thức trên OpenRouter](https://openrouter.ai/liquid/lfm-2.5-2.6b:free),
+theo yêu cầu người dùng. Đây là thay đổi route so với starter; các tài liệu đề
+gốc bên dưới vẫn giữ nguyên để đối chiếu. Route mới đã gọi thành công.
+Runtime retry tối đa 3 lần cho HTTP 429, chờ theo Retry-After (hoặc metadata
+của provider), rồi báo lỗi nếu vẫn thất bại; không giả kết quả phòng thủ.
+Sau khi chuyển Red sang Gemini
+`gemini-3.5-flash`, CP4 đã chạy thành công: Red leak 5/5, Red Advance leak 0/5;
+đã sinh đủ 3 file attack JSON. Kết quả CP4 dùng lần chạy thật trước đó;
+bonus vẫn do grader replay quyết định. Code và artifacts chưa commit/push,
+để người học review trước khi nộp.
+
 > 👤 **Hình thức:** bài tập **cá nhân** (1 người / 1 MSSV).  
 > 🎯 **Mục tiêu:** xây **Blue** (phòng thủ), rồi red-team **Red** + **Red Advance**.  
 > ✅ Làm theo **Checkpoint 1 → 5** trong [`CHECKPOINTS.md`](CHECKPOINTS.md) · nộp theo [`SUBMISSION.md`](SUBMISSION.md).

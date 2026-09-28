@@ -1,5 +1,5 @@
 """
-Assignment 11 — Monitoring & Alerts starter (TODO).
+Assignment 11 — Monitoring counters and active alerts.
 
 Tracks block rate, rate-limit hits, judge fail rate.
 Fires alerts when thresholds are exceeded.
@@ -36,22 +36,32 @@ class MonitoringAlert:
 
     # Counters — update these from your pipeline after each request
     total_requests: int = 0
+    failed_requests: int = 0
     blocked_requests: int = 0
     rate_limit_hits: int = 0
     judge_checks: int = 0
     judge_fails: int = 0
 
     def check_metrics(self) -> list[Alert]:
-        """TODO: compute rates, append Alert objects when thresholds exceeded."""
-        raise NotImplementedError("Implement MonitoringAlert.check_metrics")
+        """Recompute active alerts; repeated checks do not duplicate them."""
+        values = self.snapshot()
+        thresholds = {
+            "block_rate": self.block_rate_threshold,
+            "rate_limit_hits": self.rate_limit_hit_threshold,
+            "judge_fail_rate": self.judge_fail_rate_threshold,
+        }
+        self.alerts = [
+            Alert(metric, values[metric], threshold, f"{metric} exceeded {threshold}")
+            for metric, threshold in thresholds.items() if values[metric] > threshold
+        ]
+        return self.alerts
 
     def export_json(self, filepath: str | None = None):
-        """TODO: write metrics + alerts to JSON under repo-root ``outputs/`` by default.
-        Use ``filepath or default_metrics_path()`` so running from ``src/`` does not
-        create ``src/outputs/``.
-        """
-        _ = filepath or default_metrics_path()
-        raise NotImplementedError("Implement MonitoringAlert.export_json")
+        """Write current counters and active alerts."""
+        self.check_metrics()
+        path = Path(filepath or default_metrics_path())
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(self.snapshot(), ensure_ascii=False, indent=2), encoding="utf-8")
 
     def snapshot(self) -> dict:
         block_rate = (
@@ -64,6 +74,7 @@ class MonitoringAlert:
         )
         return {
             "total_requests": self.total_requests,
+            "failed_requests": self.failed_requests,
             "blocked_requests": self.blocked_requests,
             "block_rate": block_rate,
             "rate_limit_hits": self.rate_limit_hits,
